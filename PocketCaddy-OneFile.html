@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang='fr'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>Pocket Caddy — OneFile</title>
+<meta name='theme-color' content='#0b0f14'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+/* ====== Styles (tout en un) ====== */
+:root{
+  --bg:#0b0f14; --fg:#d8e1f0; --muted:#9fb2c9;
+  --glass:rgba(255,255,255,.06); --border:rgba(255,255,255,.10);
+  --acc:#6aa0ff; --danger:#ff6a6a;
+}
+*{box-sizing:border-box} html,body{height:100%}
+body{
+  margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;
+  color:var(--fg); background:radial-gradient(1200px 800px at 80% -10%, #1a2230, transparent),
+                     radial-gradient(900px 700px at -10% 110%, #111722, transparent),
+                     var(--bg);
+}
+.topbar{ position:sticky; top:0; display:flex; gap:10px; align-items:center; justify-content:space-between;
+  padding:.75rem 1rem; border-bottom:1px solid var(--border); backdrop-filter: blur(12px); }
+.brand{display:flex; gap:.6rem; align-items:center}
+.brand .logo{width:28px; height:28px; border-radius:8px; background:linear-gradient(180deg,#87a8ff33,#ffffff10); display:grid; place-items:center;
+  border:1px solid var(--border); font-weight:700}
+.brand h1{font-size:1rem; margin:0}
+nav{display:flex; gap:.5rem; align-items:center; flex-wrap:wrap}
+button,.ghost,select,input,a.open{
+  background:var(--glass); border:1px solid var(--border); color:var(--fg);
+  padding:.55rem .8rem; border-radius:14px; text-decoration:none; cursor:pointer;
+}
+button:hover,.ghost:hover{border-color:#ffffff2b}
+button.danger{border-color:#ff6a6a55}
+main{max-width:1100px; margin:18px auto; padding:0 12px}
+.glass{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02)); border:1px solid var(--border); border-radius:18px}
+.panel{padding:14px 16px; margin-bottom:14px}
+.row{display:flex; gap:.5rem; flex-wrap:wrap}
+.quickadd input[type=url], .quickadd input[type=text]{flex:1; min-width:220px}
+.grid{display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px}
+.card{display:grid; grid-template-columns:72px 1fr; grid-template-rows:auto auto; gap:10px; padding:10px}
+.card .thumb{grid-row:1/span 2}
+.card .thumb img{width:72px; height:72px; border-radius:14px; object-fit:cover; background:#0e131c}
+.card .title{margin:.2rem 0; font-size:1rem; line-height:1.2}
+.card .sub{margin:0; color:var(--muted); font-size:.85rem}
+.card .actions{grid-column:1/span 2; display:flex; gap:.5rem; justify-content:flex-end}
+.foot{padding:12px; text-align:center; border-top:1px solid var(--border); opacity:.8}
+input,select{outline:none}
+.file-up{display:inline-flex; align-items:center; gap:.4rem}
+.toast{position:fixed; left:50%; transform:translateX(-50%) translateY(12px); bottom:-60px; padding:.6rem .8rem; border-radius:14px;
+  border:1px solid var(--border); background:var(--glass); transition:.3s; opacity:0}
+.toast.show{bottom:12px; opacity:1}
+@media (max-width:560px){ .card{grid-template-columns:60px 1fr} .card .thumb img{width:60px; height:60px} }
+</style>
+</head>
+<body>
+  <header class="topbar glass">
+    <div class="brand">
+      <div class="logo">PC</div>
+      <h1>Pocket Caddy — OneFile</h1>
+    </div>
+    <nav>
+      <a class="ghost" href="#" id="btn-export">Exporter</a>
+      <label class="ghost file-up">Importer <input type="file" id="import-file" accept=".json" hidden></label>
+      <button id="btn-clear" class="danger ghost">Vider</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="glass panel quickadd">
+      <h2 style="margin:0 0 .5rem 0">Ajout rapide</h2>
+      <div class="row">
+        <input type="url" id="url-input" placeholder="Coller/entrer une URL (YouTube, site, image)">
+        <button id="add-url">Ajouter URL</button>
+        <input type="text" id="note-title" placeholder="Titre de note">
+        <button id="add-note">Nouvelle Note</button>
+      </div>
+    </section>
+
+    <section class="glass panel filters">
+      <div class="row">
+        <select id="filter-type" title="Filtrer par type">
+          <option value="all">Toutes</option>
+          <option value="video">YouTube</option>
+          <option value="image">Images</option>
+          <option value="site">Sites</option>
+          <option value="note">Notes</option>
+          <option value="ai">OpenAI/AI</option>
+          <option value="creative">3D/Creative</option>
+          <option value="sfxvfx">SFX/VFX assets</option>
+          <option value="code">Code</option>
+        </select>
+        <input type="search" id="search" placeholder="Rechercher...">
+      </div>
+    </section>
+
+    <section class="panel grid" id="items"></section>
+  </main>
+
+  <footer class="glass foot">
+    <small>Fichier unique. Données stockées dans <b>localStorage</b>. Paramètre d’URL pris en charge: <code>?url=https://...</code></small>
+  </footer>
+
+  <template id="card-template">
+    <article class="card glass">
+      <div class="thumb"><img alt=""></div>
+      <div class="meta">
+        <h3 class="title"></h3>
+        <p class="sub"></p>
+      </div>
+      <div class="actions">
+        <a class="open" target="_blank" rel="noopener">Ouvrir</a>
+        <button class="del">Supprimer</button>
+      </div>
+    </article>
+  </template>
+
+<script>
+// ====== JS (tout en un) ======
+const storeKey = "pc_items_v1";
+
+function loadItems(){
+  try{ return JSON.parse(localStorage.getItem(storeKey) || "[]"); }
+  catch(e){ return []; }
+}
+function saveItems(items){ localStorage.setItem(storeKey, JSON.stringify(items)); render(items); }
+
+function classify(url, note=false){
+  if(note) return "note";
+  if(!url) return "site";
+  const u = url.toLowerCase();
+  const domain = (u.match(/^https?:\/\/([^\/]+)/)?.[1] || "").toLowerCase();
+  if(u.includes("youtu.be") || domain.includes("youtube.com")) return "video";
+  if(u.match(/\.(png|jpg|jpeg|gif|webp|avif|svg)(\?|#|$)/)) return "image";
+  if(/openai|claude|perplexity|huggingface|replicate|stability\.ai/.test(domain)) return "ai";
+  if(/blender|unrealengine|quixel|polyhaven|sketchfab|mixamo|epicgames/.test(domain)) return "creative";
+  if(/fx|vfx|sfx|sound|freesound|videvo|pixabay|mixkit|productioncrate/.test(domain)) return "sfxvfx";
+  if(/github|gitlab|stack|npmjs|codesandbox|codepen/.test(domain)) return "code";
+  return "site";
+}
+function ytThumb(url){
+  try{
+    const u = new URL(url);
+    if(u.hostname.includes("youtu.be")) return `https://i.ytimg.com/vi/${u.pathname.slice(1)}/hqdefault.jpg`;
+    if(u.hostname.includes("youtube.com")){
+      const id = u.searchParams.get("v"); if(id) return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+    }
+  }catch(e){}
+  return null;
+}
+function favicon(domain){ return `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`; }
+function getDomain(url){ try{ return new URL(url).hostname; } catch(e){ return ""; } }
+
+function mkItem({url, title, noteText}){
+  const type = classify(url, !!noteText);
+  const domain = url ? getDomain(url) : "";
+  let thumb = null;
+  if(type === "video") thumb = ytThumb(url);
+  else if(type === "image") thumb = url;
+  else if(domain) thumb = favicon(domain);
+  return {
+    id: Date.now() + "-" + Math.random().toString(36).slice(2,7),
+    type, url: url || null, title: title || (url ? url : "Note"),
+    noteText: noteText || null, domain, createdAt: new Date().toISOString(), thumb
+  };
+}
+
+function addURL(url){
+  if(!url) return toast("URL vide");
+  const items = loadItems();
+  if(items.some(i => i.url === url)) return toast("Déjà présent");
+  const it = mkItem({url});
+  items.unshift(it); saveItems(items); toast("Ajouté");
+}
+function addNote(title){
+  if(!title) return toast("Titre vide");
+  const items = loadItems();
+  const it = mkItem({title, noteText: ""});
+  items.unshift(it); saveItems(items); toast("Note créée");
+}
+function removeItem(id){ saveItems(loadItems().filter(i => i.id !== id)); }
+
+function render(items=loadItems()){
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const type = document.getElementById("filter-type").value;
+  const root = document.getElementById("items");
+  root.innerHTML = "";
+  items
+    .filter(i => type==="all" ? true : i.type===type)
+    .filter(i => !q || (i.title?.toLowerCase().includes(q) || i.url?.toLowerCase().includes(q) || i.domain?.toLowerCase().includes(q)))
+    .forEach(i => {
+      const tpl = document.getElementById("card-template").content.cloneNode(true);
+      const img = tpl.querySelector("img");
+      const title = tpl.querySelector(".title");
+      const sub = tpl.querySelector(".sub");
+      const open = tpl.querySelector(".open");
+      const del = tpl.querySelector(".del");
+      img.src = i.thumb || ""; img.alt = i.domain || i.type;
+      title.textContent = i.title || i.url || "Sans titre";
+      sub.textContent = (i.type.toUpperCase()) + (i.domain ? " • " + i.domain : "") + " • " + new Date(i.createdAt).toLocaleString();
+      if(i.url){ open.href = i.url; open.style.display = "inline-flex"; } else { open.style.display = "none"; }
+      del.onclick = () => removeItem(i.id);
+      root.appendChild(tpl);
+    });
+}
+function toast(msg){
+  let t = document.createElement("div"); t.className = "toast glass"; t.textContent = msg;
+  document.body.appendChild(t); setTimeout(()=> t.classList.add("show"), 10);
+  setTimeout(()=> t.classList.remove("show"), 1900); setTimeout(()=> t.remove(), 2400);
+}
+function handleCaptureParam(){
+  try{
+    const u = new URL(location.href); const cap = u.searchParams.get("url");
+    if(cap){ addURL(cap); u.searchParams.delete("url"); history.replaceState({}, "", u.pathname); }
+  }catch(e){}
+}
+
+// Bind UI
+document.getElementById("add-url").onclick = ()=> addURL(document.getElementById("url-input").value.trim());
+document.getElementById("add-note").onclick = ()=> addNote(document.getElementById("note-title").value.trim());
+document.getElementById("btn-export").onclick = (e)=>{
+  e.preventDefault();
+  const blob = new Blob([localStorage.getItem(storeKey) || "[]"], {type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "pocketcaddy_export.json"; a.click();
+};
+document.getElementById("import-file").addEventListener("change", async (e)=>{
+  const file = e.target.files?.[0]; if(!file) return;
+  const text = await file.text();
+  try{
+    const data = JSON.parse(text);
+    if(Array.isArray(data)){ saveItems(data); toast("Import ok"); } else toast("Fichier invalide");
+  }catch{ toast("JSON invalide"); }
+});
+document.getElementById("btn-clear").onclick = ()=>{
+  if(confirm("Supprimer tous les éléments ?")){ localStorage.removeItem(storeKey); render([]); }
+};
+document.getElementById("filter-type").onchange = ()=> render();
+document.getElementById("search").oninput = ()=> render();
+
+handleCaptureParam();
+render();
+</script>
+</body>
+</html>
